@@ -1,18 +1,32 @@
-
 (function () {
+  "use strict";
+
   const URL = "https://qnktdyjivwojgvshuddn.supabase.co";
   const KEY = "sb_publishable_RnF64qRX-V4OTt7HtIothw_GvMCtfBI";
 
   const library = document.createElement("script");
   library.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   library.onload = start;
-  library.onerror = () => alert("Não foi possível carregar o sistema de contas.");
+  library.onerror = function () {
+    alert("Não foi possível carregar o sistema de contas.");
+  };
   document.head.appendChild(library);
 
   function start() {
     const db = window.supabase.createClient(URL, KEY);
     const form = document.getElementById("interestForm");
-    if (!form) return;
+    const modalTitle = document.getElementById("modalTitle");
+    const modalDescription = document.getElementById("modalDescription");
+    const modalNote = document.querySelector(".modal-note");
+    const backdrop = document.getElementById("modalBackdrop");
+    const modal = backdrop && backdrop.querySelector(".modal");
+    const loginButton = document.getElementById("loginButton");
+    const mobileAccount = document.getElementById("mobileAccount");
+
+    if (!form || !modal || !modalTitle) {
+      console.error("Não foi possível encontrar o formulário ou a janela da conta.");
+      return;
+    }
 
     const name = document.getElementById("interestName");
     const phone = document.getElementById("interestPhone");
@@ -20,10 +34,13 @@
       form.querySelector('button[type="submit"]') ||
       form.querySelector("button");
 
-    if (!name || !phone || !button) {
-      console.error("Não foram encontrados os campos do formulário.");
-      return;
-    }
+    if (!name || !phone || !button) return;
+
+    const originalFormDisplay = form.style.display;
+    const originalNoteDisplay = modalNote ? modalNote.style.display : "";
+    let activeSession = null;
+    let accountPanel = null;
+    let busy = false;
 
     function makeInput(type, placeholder, autocomplete) {
       const input = document.createElement("input");
@@ -91,11 +108,7 @@
       province.appendChild(option);
     });
 
-    const district = makeInput(
-      "text",
-      "O seu distrito",
-      "address-level3"
-    );
+    const district = makeInput("text", "O seu distrito", "address-level3");
     district.id = "marketAuthDistrict";
     district.setAttribute("aria-label", "Distrito");
 
@@ -103,38 +116,21 @@
     form.insertBefore(email, phone);
     form.insertBefore(makeLabel("Palavra-passe", password), phone);
     form.insertBefore(password, phone);
-    form.insertBefore(
-      makeLabel("Província", province),
-      button
-    );
+    form.insertBefore(makeLabel("Província", province), button);
     form.insertBefore(province, button);
-    form.insertBefore(
-      makeLabel("Distrito", district),
-      button
-    );
+    form.insertBefore(makeLabel("Distrito", district), button);
     form.insertBefore(district, button);
 
     function setFieldVisibility(input, visible) {
       input.hidden = !visible;
-
-      const label = form.querySelector(
-        'label[for="' + input.id + '"]'
-      );
+      const label = form.querySelector('label[for="' + input.id + '"]');
       if (label) label.hidden = !visible;
-
-      if (input === name || input === phone) {
-        const existingLabel = form.querySelector(
-          'label[for="' + input.id + '"]'
-        );
-        if (existingLabel) existingLabel.hidden = !visible;
-      }
     }
 
     function getMode() {
-      const title =
-        document.getElementById("modalTitle")?.textContent || "";
-      const value = title.toLowerCase();
+      const value = (modalTitle.textContent || "").toLowerCase();
 
+      if (value.includes("minha conta")) return "account";
       if (value.includes("entrar")) return "login";
       if (
         value.includes("criar") ||
@@ -160,6 +156,15 @@
         field.required = registering || loggingIn;
       });
 
+      if (mode === "account") {
+        form.hidden = true;
+        if (modalNote) modalNote.hidden = true;
+        return;
+      }
+
+      form.hidden = false;
+      if (modalNote) modalNote.hidden = false;
+
       if (mode === "login") {
         password.autocomplete = "current-password";
         button.textContent = "Entrar";
@@ -169,18 +174,148 @@
       }
     }
 
-    updateFormMode();
+    function ensureAccountPanel() {
+      if (accountPanel) return accountPanel;
 
-    const titleElement = document.getElementById("modalTitle");
-    if (titleElement) {
-      new MutationObserver(updateFormMode).observe(titleElement, {
-        childList: true,
-        characterData: true,
-        subtree: true
+      accountPanel = document.createElement("div");
+      accountPanel.id = "marketAccountPanel";
+      accountPanel.style.cssText =
+        "padding:16px 0;color:#24352a;line-height:1.6;overflow-wrap:anywhere";
+
+      const heading = document.createElement("h3");
+      heading.textContent = "A minha conta";
+      heading.style.cssText = "margin:0 0 12px;color:#166534";
+
+      const emailLine = document.createElement("p");
+      emailLine.style.margin = "8px 0";
+
+      const nameLine = document.createElement("p");
+      nameLine.style.margin = "8px 0";
+
+      const locationLine = document.createElement("p");
+      locationLine.style.margin = "8px 0";
+
+      const statusLine = document.createElement("p");
+      statusLine.textContent = "Sessão iniciada";
+      statusLine.style.cssText = "color:#15803d;font-weight:600;margin:12px 0";
+
+      const signOutButton = document.createElement("button");
+      signOutButton.type = "button";
+      signOutButton.textContent = "Terminar sessão";
+      signOutButton.style.cssText =
+        "width:100%;padding:12px;border:0;border-radius:10px;background:#166534;color:white;font:inherit;font-weight:600;cursor:pointer;margin-top:12px";
+
+      signOutButton.addEventListener("click", async function () {
+        signOutButton.disabled = true;
+        signOutButton.textContent = "A terminar sessão...";
+        const result = await db.auth.signOut();
+
+        if (result.error) {
+          alert("Não foi possível terminar a sessão: " + result.error.message);
+          signOutButton.disabled = false;
+          signOutButton.textContent = "Terminar sessão";
+          return;
+        }
+
+        activeSession = null;
+        if (typeof closeModal === "function") closeModal();
+        refreshAccountButton();
+        alert("Sessão terminada com sucesso.");
       });
+
+      accountPanel.append(
+        heading,
+        emailLine,
+        nameLine,
+        locationLine,
+        statusLine,
+        signOutButton
+      );
+
+      modal.appendChild(accountPanel);
+      return accountPanel;
     }
 
-    let busy = false;
+    function refreshAccountButton() {
+      if (loginButton) {
+        loginButton.textContent = activeSession ? "A minha conta" : "Entrar";
+      }
+      if (mobileAccount) {
+        mobileAccount.textContent = activeSession ? "A minha conta" : "Conta";
+      }
+    }
+
+    function openAccount() {
+      if (!activeSession) return;
+
+      const user = activeSession.user;
+      const metadata = user.user_metadata || {};
+      const panel = ensureAccountPanel();
+      const lines = panel.querySelectorAll("p");
+
+      lines[0].textContent = "E-mail: " + (user.email || "Não indicado");
+      lines[1].textContent =
+        "Nome: " + (metadata.full_name || "Ainda não indicado");
+
+      const provinceValue = metadata.province || "";
+      const districtValue = metadata.district || "";
+      const phoneValue = metadata.phone || "";
+
+      const details = [];
+      if (phoneValue) details.push("Telefone: " + phoneValue);
+      if (provinceValue) details.push("Província: " + provinceValue);
+      if (districtValue) details.push("Distrito: " + districtValue);
+
+      lines[2].textContent = details.length
+        ? details.join(" · ")
+        : "Ainda não foram indicados outros dados do perfil.";
+
+      form.hidden = true;
+      if (modalNote) modalNote.hidden = true;
+      panel.hidden = false;
+
+      modalTitle.textContent = "A minha conta";
+      if (modalDescription) {
+        modalDescription.textContent = "Os dados básicos da sua conta.";
+      }
+
+      if (backdrop) backdrop.hidden = false;
+    }
+
+    function restoreNormalModal() {
+      if (getMode() !== "account") {
+        if (accountPanel) accountPanel.hidden = true;
+        form.hidden = false;
+        if (modalNote) modalNote.hidden = false;
+        updateFormMode();
+      }
+    }
+
+    updateFormMode();
+
+    const titleObserver = new MutationObserver(function () {
+      updateFormMode();
+      restoreNormalModal();
+    });
+    titleObserver.observe(modalTitle, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+
+    function accountClickHandler(event) {
+      if (!activeSession) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openAccount();
+    }
+
+    if (loginButton) {
+      loginButton.addEventListener("click", accountClickHandler, true);
+    }
+    if (mobileAccount) {
+      mobileAccount.addEventListener("click", accountClickHandler, true);
+    }
 
     form.addEventListener("submit", async function (event) {
       const mode = getMode();
@@ -189,8 +324,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
 
-      if (busy) return;
-      if (!form.reportValidity()) return;
+      if (busy || !form.reportValidity()) return;
 
       busy = true;
       button.disabled = true;
@@ -220,9 +354,11 @@
 
         if (result.error) throw result.error;
 
-        if (typeof closeModal === "function") closeModal();
-
         if (result.data.session) {
+          activeSession = result.data.session;
+          if (typeof closeModal === "function") closeModal();
+          refreshAccountButton();
+
           alert(
             mode === "login"
               ? "Sessão iniciada com sucesso!"
@@ -242,16 +378,23 @@
       }
     }, true);
 
-    db.auth.getSession().then(function ({ data, error }) {
-      if (error) {
-        console.warn("Não foi possível verificar a sessão:", error.message);
+    db.auth.onAuthStateChange(function (_event, session) {
+      activeSession = session || null;
+      refreshAccountButton();
+
+      if (!activeSession && accountPanel) {
+        accountPanel.hidden = true;
+      }
+    });
+
+    db.auth.getSession().then(function (result) {
+      if (result.error) {
+        console.warn("Não foi possível verificar a sessão:", result.error.message);
         return;
       }
 
-      const loginButton = document.getElementById("loginButton");
-      if (loginButton && data.session) {
-        loginButton.textContent = "A minha conta";
-      }
+      activeSession = result.data.session || null;
+      refreshAccountButton();
     });
 
     db.from("listings").select("*").limit(100).then(function (result) {
@@ -260,10 +403,7 @@
         return;
       }
 
-      console.log(
-        "Ligação à tabela listings concluída:",
-        result.data.length
-      );
+      console.log("Ligação à tabela listings concluída:", result.data.length);
     });
   }
 })();
