@@ -157,7 +157,7 @@
         field.required = registering || loggingIn;
       });
 
-      if (mode === "account") {
+      if (mode === "account" || mode === "sell") {
         form.hidden = true;
         if (modalNote) modalNote.hidden = true;
         return;
@@ -284,7 +284,7 @@
     }
 
     function restoreNormalModal() {
-      if (getMode() !== "account") {
+      if (getMode() !== "account" && getMode() !== "sell") {
         if (accountPanel) accountPanel.hidden = true;
         form.hidden = false;
         if (modalNote) modalNote.hidden = false;
