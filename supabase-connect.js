@@ -397,7 +397,142 @@
       refreshAccountButton();
     });
 
-    db.from("listings").select("*").limit(100).then(function (result) {
+    
+    // Formulário de publicação de anúncios
+    const sellButton = document.getElementById("sellButton");
+
+    if (sellButton) {
+      sellButton.addEventListener("click", function (event) {
+        if (!activeSession) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        let publishForm = document.getElementById("marketPublishForm");
+
+        if (!publishForm) {
+          publishForm = document.createElement("form");
+          publishForm.id = "marketPublishForm";
+          publishForm.style.cssText = "padding:12px 0";
+
+          const fields = [
+            ["Nome do alimento", "product_name", "text"],
+            ["Categoria", "category", "text"],
+            ["Preço em MT", "price_mzn", "number"],
+            ["Quantidade", "quantity", "number"],
+            ["Unidade (kg, saco, caixa)", "sale_unit", "text"],
+            ["Condição do produto", "quality_condition", "text"],
+            ["Província", "province", "text"],
+            ["Distrito", "district", "text"],
+            ["Localização", "location_description", "text"],
+            ["Descrição", "description", "text"]
+          ];
+
+          fields.forEach(function (item) {
+            const label = document.createElement("label");
+            label.textContent = item[0];
+            label.style.cssText =
+              "display:block;margin-top:10px;font-weight:600";
+
+            const input = document.createElement("input");
+            input.name = item[1];
+            input.type = item[2];
+            input.required = item[1] !== "description";
+            input.style.cssText =
+              "width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box";
+
+            if (item[2] === "number") {
+              input.min = "0.01";
+              input.step = "0.01";
+            }
+
+            publishForm.append(label, input);
+          });
+
+          const submit = document.createElement("button");
+          submit.type = "submit";
+          submit.textContent = "Publicar anúncio";
+          submit.style.cssText =
+            "width:100%;padding:13px;margin-top:14px;background:#166534;color:white;border:0;border-radius:9px;font-weight:bold";
+
+          publishForm.appendChild(submit);
+
+          publishForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            if (!activeSession) {
+              alert("Entra novamente na tua conta.");
+              return;
+            }
+
+            submit.disabled = true;
+            submit.textContent = "A publicar...";
+
+            try {
+              const now = new Date().toISOString();
+
+              const sub = await db
+                .from("subscriptions")
+                .select("id")
+                .eq("user_id", activeSession.user.id)
+                .eq("status", "active")
+                .lte("starts_at", now)
+                .gt("expires_at", now)
+                .limit(1);
+
+              if (sub.error) throw sub.error;
+
+              if (!sub.data || !sub.data.length) {
+                throw new Error(
+                  "Precisas de uma subscrição ativa de 75 MT/mês para publicar."
+                );
+              }
+
+              const v = Object.fromEntries(
+                new FormData(publishForm).entries()
+              );
+
+              const result = await db.from("listings").insert({
+                seller_id: activeSession.user.id,
+                product_name: v.product_name.trim(),
+                category: v.category.trim(),
+                price_mzn: Number(v.price_mzn),
+                quantity: Number(v.quantity),
+                sale_unit: v.sale_unit.trim(),
+                quality_condition: v.quality_condition.trim(),
+                province: v.province.trim(),
+                district: v.district.trim(),
+                location_description: v.location_description.trim(),
+                description: v.description.trim(),
+                status: "available"
+              });
+
+              if (result.error) throw result.error;
+
+              alert("Anúncio publicado com sucesso!");
+              publishForm.reset();
+            } catch (err) {
+              alert("Não foi possível publicar: " + err.message);
+            } finally {
+              submit.disabled = false;
+              submit.textContent = "Publicar anúncio";
+            }
+          });
+
+          document.querySelector("#modalBackdrop .modal")
+            .appendChild(publishForm);
+        }
+
+        document.getElementById("interestForm").hidden = true;
+        publishForm.hidden = false;
+        document.getElementById("modalTitle").textContent =
+          "Quero vender no Mercado Digital";
+        document.getElementById("modalDescription").textContent =
+          "Preenche os dados do produto para publicar.";
+        document.getElementById("modalBackdrop").hidden = false;
+      }, true);
+    }
+db.from("listings").select("*").limit(100).then(function (result) {
       if (result.error) {
         console.warn("Anúncios ainda não carregados:", result.error.message);
         return;
