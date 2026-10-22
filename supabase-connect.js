@@ -131,6 +131,7 @@
       const value = (modalTitle.textContent || "").toLowerCase();
 
       if (value.includes("minha conta")) return "account";
+      if (value.includes("quero vender")) return "sell";
       if (value.includes("entrar")) return "login";
       if (
         value.includes("criar") ||
