@@ -429,7 +429,58 @@
             ["Descrição", "description", "text"]
           ];
 
-          fields.forEach(function (item) {
+          
+fields.forEach(function (item) {
+  const label = document.createElement("label");
+  label.textContent = item[0];
+  label.style.cssText =
+    "display:block;margin-top:10px;font-weight:600";
+
+  let input;
+
+  if (item[1] === "category") {
+    input = document.createElement("select");
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Selecione uma categoria";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    input.appendChild(placeholder);
+
+    [
+      "Cereais",
+      "Hortícolas e verduras",
+      "Frutas",
+      "Tubérculos e raízes",
+      "Leguminosas e oleaginosas",
+      "Produtos de origem animal",
+      "Alimentos processados",
+      "Outros alimentos"
+    ].forEach(function (category) {
+      const option = document.createElement("option");
+      option.value = category;
+      option.textContent = category;
+      input.appendChild(option);
+    });
+  } else {
+    input = document.createElement("input");
+    input.type = item[2];
+  }
+
+  input.name = item[1];
+  input.required = item[1] !== "description";
+  input.style.cssText =
+    "display:block;width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box;background:white";
+
+  if (item[2] === "number") {
+    input.min = "0.01";
+    input.step = "0.01";
+  }
+
+  publishForm.append(label, input);
+});
+
             const label = document.createElement("label");
             label.textContent = item[0];
             label.style.cssText =
