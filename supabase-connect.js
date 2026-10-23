@@ -563,13 +563,48 @@ fields.forEach(function (item) {
         document.getElementById("modalBackdrop").hidden = false;
       }, true);
     }
-db.from("listings").select("*").limit(100).then(function (result) {
-      if (result.error) {
-        console.warn("Anúncios ainda não carregados:", result.error.message);
-        return;
-      }
 
-      console.log("Ligação à tabela listings concluída:", result.data.length);
-    });
+async function loadMarketListings() {
+  const result = await db
+    .from("listings")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (result.error) {
+    console.warn("Erro ao carregar anúncios:", result.error.message);
+    return;
   }
-})();
+
+  if (!result.data || result.data.length === 0) return;
+
+  const liveProducts = result.data.map((row, index) => ({
+    id: row.id || index + 1,
+    name: row.product_name || "Produto alimentar",
+    category: row.category || "Outros alimentos",
+    province: row.province || "",
+    district: row.district || row.location_description || "",
+    price: Number(row.price_mzn) || 0,
+    unit: row.sale_unit || "unidade",
+    quantity: String(row.quantity ?? "A confirmar"),
+    image: "",
+    alt: row.product_name || "Produto alimentar",
+    status: row.status === "unavailable" ? "unavailable" : "available",
+    stamp: row.created_at
+      ? new Date(row.created_at).getTime()
+      : Date.now()
+  }));
+
+  products.splice(0, products.length, ...liveProducts);
+  render();
+
+  const line = document.getElementById("resultsLine");
+  if (line) {
+    line.innerHTML =
+      `A mostrar <strong>${liveProducts.length} anúncios reais</strong> publicados.`;
+  }
+}
+
+window.loadMarketListings = loadMarketListings;
+loadMarketListings();
+
