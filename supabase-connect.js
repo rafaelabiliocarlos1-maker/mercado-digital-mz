@@ -431,7 +431,7 @@
 
           
 fields.forEach(function (item) {
-  const label = document.createElement("label");
+
   label.textContent = item[0];
   label.style.cssText =
     "display:block;margin-top:10px;font-weight:600";
