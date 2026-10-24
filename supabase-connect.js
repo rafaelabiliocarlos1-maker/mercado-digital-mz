@@ -304,7 +304,40 @@
       subtree: true
     });
 
-    function accountClickHandler(event) {
+    
+function accountClickHandler(event) {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  const title = document.getElementById("modalTitle");
+  const form = document.getElementById("interestForm");
+  const backdrop = document.getElementById("modalBackdrop");
+  const note = document.querySelector(".modal-note");
+
+  if (!title || !form || !backdrop) return;
+
+  if (activeSession) {
+    openAccount();
+    return;
+  }
+
+  if (accountPanel) accountPanel.hidden = true;
+
+  title.textContent = "Entrar";
+
+  const description = document.getElementById("modalDescription");
+  if (description) {
+    description.textContent =
+      "Introduz o teu e-mail e a tua palavra-passe para entrar.";
+  }
+
+  form.hidden = false;
+  if (note) note.hidden = true;
+
+  updateFormMode();
+  backdrop.hidden = false;
+}
+
       if (!activeSession) return;
       event.preventDefault();
       event.stopImmediatePropagation();
