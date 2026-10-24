@@ -606,5 +606,6 @@ async function loadMarketListings() {
 }
 
 window.loadMarketListings = loadMarketListings;
-loadMarketListings();
+loadMarketListings();  }
+})();
 
