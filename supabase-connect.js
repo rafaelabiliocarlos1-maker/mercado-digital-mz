@@ -305,6 +305,7 @@
     });
 
     
+
 function accountClickHandler(event) {
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -338,11 +339,8 @@ function accountClickHandler(event) {
   backdrop.hidden = false;
 }
 
-      if (!activeSession) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      openAccount();
-    }
+
+  
 
     if (loginButton) {
       loginButton.addEventListener("click", accountClickHandler, true);
