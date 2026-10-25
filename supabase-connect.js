@@ -876,7 +876,43 @@ fields.forEach(function (item) {
 
   publishForm.append(label, input);
 });
+const photoLabel = document.createElement("label");
+photoLabel.textContent = "Fotografias reais do produto (1 a 5; máximo 5 MB cada)";
+photoLabel.style.cssText = "display:block;margin-top:12px;font-weight:600";
 
+const photoInput = document.createElement("input");
+photoInput.type = "file";
+photoInput.name = "photos";
+photoInput.accept = "image/jpeg,image/png,image/webp";
+photoInput.multiple = true;
+photoInput.required = true;
+photoInput.style.cssText = "display:block;width:100%;padding:10px;margin-top:6px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box";
+
+const photoHelp = document.createElement("p");
+photoHelp.textContent = "Formatos aceites: JPG, PNG e WebP. Escolhe pelo menos 1 fotografia.";
+photoHelp.style.cssText = "font-size:13px;color:#526354;margin:6px 0";
+
+photoInput.addEventListener("change", function () {
+  const files = Array.from(photoInput.files || []);
+
+  if (files.length > 5) {
+    alert("Podes selecionar no máximo 5 fotografias.");
+    photoInput.value = "";
+    return;
+  }
+
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  const invalid = files.some(function (file) {
+    return !allowed.includes(file.type) || file.size > 5 * 1024 * 1024;
+  });
+
+  if (invalid) {
+    alert("Usa apenas JPG, PNG ou WebP, até 5 MB por fotografia.");
+    photoInput.value = "";
+  }
+});
+
+publishForm.append(photoLabel, photoInput, photoHelp);
           const submit = document.createElement("button");
           submit.type = "submit";
           submit.textContent = "Publicar anúncio";
@@ -916,7 +952,47 @@ fields.forEach(function (item) {
                 );
               }
 
-              const v = Object.fromEntries(
+          const selectedPhotos = Array.from(photoInput.files || []);
+const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+if (selectedPhotos.length < 1 || selectedPhotos.length > 5) {
+  throw new Error("Seleciona entre 1 e 5 fotografias reais do produto.");
+}
+
+if (selectedPhotos.some(function (file) {
+  return !allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024;
+})) {
+  throw new Error("Cada fotografia deve ser JPG, PNG ou WebP e ter no máximo 5 MB.");
+}
+
+const photoUrls = [];
+
+for (const file of selectedPhotos) {
+  const extension = file.type === "image/jpeg" ? "jpg" :
+    file.type === "image/png" ? "png" : "webp";
+
+  const objectPath = activeSession.user.id + "/" +
+    (window.crypto && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2)) +
+    "." + extension;
+
+  const upload = await db.storage
+    .from("listing-photos")
+    .upload(objectPath, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false
+    });
+
+  if (upload.error) throw upload.error;
+
+  const publicUrl = db.storage
+    .from("listing-photos")
+    .getPublicUrl(objectPath).data.publicUrl;
+
+  photoUrls.push(publicUrl);
+}    const v = Object.fromEntries(
                 new FormData(publishForm).entries()
               );
 
@@ -932,7 +1008,7 @@ fields.forEach(function (item) {
                 district: v.district.trim(),
                 location_description: v.location_description.trim(),
                 description: v.description.trim(),
-                status: "available"
+              photos: photoUrls,  status: "available"
               });
 
               if (result.error) throw result.error;
@@ -984,7 +1060,7 @@ async function loadMarketListings() {
     price: Number(row.price_mzn) || 0,
     unit: row.sale_unit || "unidade",
     quantity: String(row.quantity ?? "A confirmar"),
-    image: "",
+    image: Array.isArray(row.photos) && row.photos.length ? row.photos[0] : "",
     alt: row.product_name || "Produto alimentar",
     status: row.status === "unavailable" ? "unavailable" : "available",
     stamp: row.created_at
