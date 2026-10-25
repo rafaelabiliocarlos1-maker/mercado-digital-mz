@@ -759,14 +759,54 @@ function accountClickHandler(event) {
     // Formulário de publicação de anúncios
     const sellButton = document.getElementById("sellButton");
 
-    if (sellButton) {
-      sellButton.addEventListener("click", function (event) {
-        if (!activeSession) return;
+    sellButton.addEventListener("click", async function (event) {
+  if (!activeSession) return;
 
-        event.preventDefault();
-        event.stopImmediatePropagation();
+  event.preventDefault();
+  event.stopImmediatePropagation();
 
-        let publishForm = document.getElementById("marketPublishForm");
+  const checkTime = new Date().toISOString();
+
+  try {
+    const subscriptionCheck = await db
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", activeSession.user.id)
+      .eq("status", "active")
+      .lte("starts_at", checkTime)
+      .gt("expires_at", checkTime)
+      .limit(1);
+
+    if (subscriptionCheck.error) throw subscriptionCheck.error;
+
+    if (!subscriptionCheck.data || !subscriptionCheck.data.length) {
+      alert(
+        "Para vender no Mercado Digital MZ, precisas de uma subscrição ativa de 75 MT por mês. Vamos abrir a área da tua conta."
+      );
+
+      openAccount();
+
+      const subscriptionButton = Array.from(
+        accountPanel.querySelectorAll("button")
+      ).find(function (item) {
+        return item.textContent === "A minha subscrição";
+      });
+
+      if (subscriptionButton) subscriptionButton.click();
+      return;
+    }
+  } catch (subscriptionError) {
+    console.warn(
+      "Não foi possível verificar a subscrição:",
+      subscriptionError.message
+    );
+    alert(
+      "Não foi possível verificar a tua subscrição agora. Tenta novamente."
+    );
+    return;
+  }
+
+  let publishForm = document.getElementById("marketPublishForm");
 
         if (!publishForm) {
           publishForm = document.createElement("form");
