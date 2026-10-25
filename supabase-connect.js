@@ -545,7 +545,7 @@
       error.message
     );
   }
-} async function refreshAdminAccess() {
+}
   function restoreNormalModal() {
       if (getMode() !== "account" && getMode() !== "sell") {
         if (accountPanel) accountPanel.hidden = true;
