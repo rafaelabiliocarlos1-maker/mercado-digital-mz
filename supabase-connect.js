@@ -301,7 +301,130 @@
           console.warn("Erro na subscrição:", error.message);
         }
       });
- const signOutButton = document.createElement("button");
+  const adminButton = document.createElement("button");
+  adminButton.type = "button";
+  adminButton.textContent = "Administração — subscrições";
+  adminButton.hidden = true;
+  adminButton.style.cssText =
+    "width:100%;padding:12px;border:1px solid #166534;border-radius:10px;background:#f0fdf4;color:#166534;font:inherit;font-weight:600;cursor:pointer;margin-top:12px";
+
+  const adminPanel = document.createElement("div");
+  adminPanel.hidden = true;
+  adminPanel.style.cssText =
+    "margin-top:12px;padding:14px;border:1px solid #dce5dd;border-radius:12px;background:#f7fbf7;overflow-wrap:anywhere";
+
+  adminButton.addEventListener("click", async function () {
+    adminPanel.hidden = !adminPanel.hidden;
+    if (adminPanel.hidden) return;
+
+    adminPanel.textContent = "A consultar pedidos pendentes...";
+
+    try {
+      const result = await db
+        .from("subscriptions")
+        .select("id,user_id,amount_mzn,created_at,status")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+
+      if (result.error) throw result.error;
+
+      adminPanel.replaceChildren();
+
+      const heading = document.createElement("h4");
+      heading.textContent = "Pedidos de subscrição pendentes";
+      heading.style.color = "#166534";
+      adminPanel.appendChild(heading);
+
+      if (!result.data || result.data.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "Não existem pedidos pendentes neste momento.";
+        adminPanel.appendChild(empty);
+        return;
+      }
+
+      result.data.forEach(function (sub) {
+        const card = document.createElement("div");
+        card.style.cssText =
+          "padding:12px 0;border-top:1px solid #dce5dd;margin-top:10px";
+
+        const details = document.createElement("p");
+        details.textContent =
+          "Valor: " + sub.amount_mzn + " MT · Utilizador: " + sub.user_id +
+          " · Data: " + new Date(sub.created_at).toLocaleString("pt-MZ");
+        details.style.cssText = "font-size:13px;overflow-wrap:anywhere";
+        card.appendChild(details);
+
+        const provider = document.createElement("select");
+        provider.style.cssText =
+          "display:block;width:100%;padding:10px;border:1px solid #dce5dd;border-radius:8px;margin:8px 0;font:inherit;background:white;box-sizing:border-box";
+
+        [
+          ["mpesa", "M-Pesa"],
+          ["emola", "e-Mola"]
+        ].forEach(function (item) {
+          const option = document.createElement("option");
+          option.value = item[0];
+          option.textContent = item[1];
+          provider.appendChild(option);
+        });
+
+        const reference = document.createElement("input");
+        reference.type = "text";
+        reference.placeholder = "Referência real da transação";
+        reference.maxLength = 160;
+        reference.style.cssText =
+          "display:block;width:100%;padding:10px;border:1px solid #dce5dd;border-radius:8px;margin:8px 0;font:inherit;box-sizing:border-box";
+
+        const confirmButton = document.createElement("button");
+        confirmButton.type = "button";
+        confirmButton.textContent = "Confirmar pagamento recebido";
+        confirmButton.style.cssText =
+          "width:100%;padding:11px;margin-top:8px;background:#166534;color:white;border:0;border-radius:9px;font:inherit;font-weight:600;cursor:pointer";
+
+        confirmButton.addEventListener("click", async function () {
+          const paymentReference = reference.value.trim();
+
+          if (!paymentReference) {
+            alert("Introduz a referência real do pagamento.");
+            reference.focus();
+            return;
+          }
+
+          if (!window.confirm(
+            "Confirmas que verificaste o recebimento real dos 75 MT? Só continua se o dinheiro já foi recebido."
+          )) return;
+
+          confirmButton.disabled = true;
+          confirmButton.textContent = "A confirmar...";
+
+          try {
+            const response = await db.rpc("admin_confirm_subscription", {
+              p_subscription_id: sub.id,
+              p_provider: provider.value,
+              p_reference: paymentReference
+            });
+
+            if (response.error) throw response.error;
+
+            alert("Subscrição ativada com sucesso.");
+            adminButton.click();
+            adminButton.click();
+          } catch (error) {
+            alert("Não foi possível confirmar: " + error.message);
+            confirmButton.disabled = false;
+            confirmButton.textContent = "Confirmar pagamento recebido";
+          }
+        });
+
+        card.append(provider, reference, confirmButton);
+        adminPanel.appendChild(card);
+      });
+    } catch (error) {
+      adminPanel.textContent =
+        "Erro ao consultar pedidos. Verifica as permissões no Supabase e tenta novamente.";
+      console.warn("Erro administrativo:", error.message);
+    }
+  }); const signOutButton = document.createElement("button");
       signOutButton.type = "button";
       signOutButton.textContent = "Terminar sessão";
       signOutButton.style.cssText =
@@ -333,7 +456,8 @@
         locationLine,
         statusLine,
         subscriptionButton,
-        subscriptionPanel,
+        subscriptionPanel,        adminButton,
+        adminPanel,
         signOutButton
       );
 
@@ -386,9 +510,73 @@
       }
 
       if (backdrop) backdrop.hidden = false;
-    }
+         refreshAdminAccess(); }
 
-    function restoreNormalModal() {
+   async function refreshAdminAccess() {
+  if (!activeSession || !accountPanel) return;
+
+  const adminButton =
+    accountPanel.querySelector("#marketAdminButton") ||
+    Array.from(accountPanel.querySelectorAll("button")).find(
+      function (item) {
+        return item.textContent === "Administração — subscrições";
+      }
+    );
+
+  if (!adminButton) return;
+
+  adminButton.hidden = true;
+
+  try {
+    const result = await db
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", activeSession.user.id)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+
+    adminButton.hidden = !(
+      result.data && result.data.role === "admin"
+    );
+  } catch (error) {
+    console.warn(
+      "Não foi possível verificar o acesso administrativo:",
+      error.message
+    );
+  }
+} async function refreshAdminAccess() {
+  if (!activeSession || !accountPanel) return;
+
+  const adminButton = Array.from(
+    accountPanel.querySelectorAll("button")
+  ).find(function (item) {
+    return item.textContent === "Administração — subscrições";
+  });
+
+  if (!adminButton) return;
+
+  adminButton.hidden = true;
+
+  try {
+    const result = await db
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", activeSession.user.id)
+      .maybeSingle();
+
+    if (result.error) throw result.error;
+
+    adminButton.hidden = !(
+      result.data && result.data.role === "admin"
+    );
+  } catch (error) {
+    console.warn(
+      "Erro ao verificar administrador:",
+      error.message
+    );
+  }
+}function restoreNormalModal() {
       if (getMode() !== "account" && getMode() !== "sell") {
         if (accountPanel) accountPanel.hidden = true;
         form.hidden = false;
