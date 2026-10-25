@@ -200,7 +200,108 @@
       statusLine.textContent = "Sessão iniciada";
       statusLine.style.cssText = "color:#15803d;font-weight:600;margin:12px 0";
 
-      const signOutButton = document.createElement("button");
+     
+      const subscriptionButton = document.createElement("button");
+      subscriptionButton.type = "button";
+      subscriptionButton.textContent = "A minha subscrição";
+      subscriptionButton.style.cssText =
+        "width:100%;padding:12px;border:1px solid #166534;border-radius:10px;background:white;color:#166534;font:inherit;font-weight:600;cursor:pointer;margin-top:8px";
+
+      const subscriptionPanel = document.createElement("div");
+      subscriptionPanel.hidden = true;
+      subscriptionPanel.style.cssText =
+        "margin-top:12px;padding:14px;border:1px solid #dce5dd;border-radius:12px;background:#f7fbf7;overflow-wrap:anywhere";
+
+      subscriptionButton.addEventListener("click", async function () {
+        subscriptionPanel.hidden = false;
+        subscriptionPanel.textContent = "A consultar a subscrição...";
+
+        try {
+          const result = await db
+            .from("subscriptions")
+            .select("amount_mzn,status,starts_at,expires_at,created_at")
+            .eq("user_id", activeSession.user.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (result.error) throw result.error;
+
+          subscriptionPanel.replaceChildren();
+
+          const heading = document.createElement("h4");
+          heading.textContent = "A minha subscrição";
+          heading.style.color = "#166534";
+
+          const amount = document.createElement("p");
+          amount.textContent = "Valor mensal: 75 MT";
+
+          const state = document.createElement("p");
+          const dates = document.createElement("p");
+          const payment = document.createElement("p");
+          payment.textContent =
+            "Número indicado para pagamento: 862 472 110.";
+
+          const notice = document.createElement("p");
+          notice.style.fontSize = "13px";
+          notice.textContent =
+            "A subscrição só deve ser ativada após confirmação real do pagamento. Esta página ainda não confirma pagamentos automaticamente.";
+
+          if (!result.data || !result.data.length) {
+            state.textContent =
+              "Estado: nenhuma subscrição registada.";
+            dates.textContent = "Validade: indisponível.";
+          } else {
+            const sub = result.data[0];
+            const now = Date.now();
+            const starts = sub.starts_at
+              ? new Date(sub.starts_at).getTime()
+              : null;
+            const expires = sub.expires_at
+              ? new Date(sub.expires_at).getTime()
+              : null;
+
+            const valid =
+              sub.status === "active" &&
+              starts !== null &&
+              starts <= now &&
+              expires !== null &&
+              expires > now;
+
+            state.textContent =
+              "Estado: " +
+              (valid
+                ? "Ativa"
+                : sub.status === "pending"
+                  ? "Pendente de confirmação"
+                  : "Expirada ou inativa");
+
+            state.style.fontWeight = "600";
+            state.style.color = valid ? "#15803d" : "#9a3412";
+
+            const formatDate = function (value) {
+              return value
+                ? new Date(value).toLocaleString("pt-MZ", {
+                    dateStyle: "medium",
+                    timeStyle: "short"
+                  })
+                : "não definida";
+            };
+
+            dates.textContent =
+              "Início: " + formatDate(sub.starts_at) +
+              " · Validade até: " + formatDate(sub.expires_at);
+          }
+
+          subscriptionPanel.append(
+            heading, amount, state, dates, payment, notice
+          );
+        } catch (error) {
+          subscriptionPanel.textContent =
+            "Não foi possível consultar a subscrição. Tenta novamente.";
+          console.warn("Erro na subscrição:", error.message);
+        }
+      });
+ const signOutButton = document.createElement("button");
       signOutButton.type = "button";
       signOutButton.textContent = "Terminar sessão";
       signOutButton.style.cssText =
@@ -224,14 +325,18 @@
         alert("Sessão terminada com sucesso.");
       });
 
+      
       accountPanel.append(
         heading,
         emailLine,
         nameLine,
         locationLine,
         statusLine,
+        subscriptionButton,
+        subscriptionPanel,
         signOutButton
       );
+
 
       modal.appendChild(accountPanel);
       return accountPanel;
