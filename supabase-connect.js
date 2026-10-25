@@ -546,37 +546,7 @@
     );
   }
 } async function refreshAdminAccess() {
-  if (!activeSession || !accountPanel) return;
-
-  const adminButton = Array.from(
-    accountPanel.querySelectorAll("button")
-  ).find(function (item) {
-    return item.textContent === "Administração — subscrições";
-  });
-
-  if (!adminButton) return;
-
-  adminButton.hidden = true;
-
-  try {
-    const result = await db
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", activeSession.user.id)
-      .maybeSingle();
-
-    if (result.error) throw result.error;
-
-    adminButton.hidden = !(
-      result.data && result.data.role === "admin"
-    );
-  } catch (error) {
-    console.warn(
-      "Erro ao verificar administrador:",
-      error.message
-    );
-  }
-}function restoreNormalModal() {
+  function restoreNormalModal() {
       if (getMode() !== "account" && getMode() !== "sell") {
         if (accountPanel) accountPanel.hidden = true;
         form.hidden = false;
