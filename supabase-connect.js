@@ -292,9 +292,72 @@
               " · Validade até: " + formatDate(sub.expires_at);
           }
 
-          subscriptionPanel.append(
-            heading, amount, state, dates, payment, notice
-          );
+        
+          const paymentMethod = document.createElement("select");
+          paymentMethod.style.cssText =
+            "width:100%;padding:12px;border:1px solid #dce5dd;border-radius:10px;margin:8px 0;font:inherit;background:white";
+
+          [
+            { value: "mpesa", label: "M-Pesa" },
+            { value: "emola", label: "e-Mola" }
+          ].forEach(function (item) {
+            const option = document.createElement("option");
+            option.value = item.value;
+            option.textContent = item.label;
+            paymentMethod.appendChild(option);
+          });
+
+          const requestButton = document.createElement("button");
+          requestButton.type = "button";
+          requestButton.textContent = "Solicitar subscrição — 75 MT";
+          requestButton.style.cssText =
+            "width:100%;padding:12px;border:0;border-radius:10px;background:#166534;color:white;font:inherit;font-weight:600;cursor:pointer;margin:8px 0";
+
+          requestButton.addEventListener("click", async function () {
+            requestButton.disabled = true;
+            requestButton.textContent = "A registar pedido...";
+
+            try {
+              const pending = await db
+                .from("subscriptions")
+                .select("id")
+                .eq("user_id", activeSession.user.id)
+                .eq("status", "pending")
+                .limit(1);
+
+              if (pending.error) throw pending.error;
+
+              if (pending.data && pending.data.length > 0) {
+                alert("Já existe um pedido pendente. Aguarda a confirmação do pagamento.");
+                return;
+              }
+
+              const created = await db
+                .from("subscriptions")
+                .insert({
+                  user_id: activeSession.user.id,
+                  amount_mzn: 75,
+                  status: "pending",
+                  payment_provider: paymentMethod.value
+                });
+
+              if (created.error) throw created.error;
+
+              alert("Pedido registado! A subscrição só será ativada após a confirmação real do pagamento.");
+              subscriptionButton.click();
+            } catch (error) {
+              console.warn("Erro ao solicitar subscrição:", error.message);
+              alert("Não foi possível registar o pedido. Verifica as permissões no Supabase.");
+            } finally {
+              requestButton.disabled = false;
+              requestButton.textContent = "Solicitar subscrição — 75 MT";
+            }
+          });
+
+  subscriptionPanel.append(
+  heading, amount, state, dates, payment, notice,
+  paymentMethod, requestButton
+);
         } catch (error) {
           subscriptionPanel.textContent =
             "Não foi possível consultar a subscrição. Tenta novamente.";
