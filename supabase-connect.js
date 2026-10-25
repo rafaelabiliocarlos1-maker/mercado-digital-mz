@@ -759,7 +759,7 @@ function accountClickHandler(event) {
     // Formulário de publicação de anúncios
     const sellButton = document.getElementById("sellButton");
 
-    sellButton.addEventListener("click", async function (event) {
+  if (sellButton) {  sellButton.addEventListener("click", async function (event) {
   if (!activeSession) return;
 
   event.preventDefault();
